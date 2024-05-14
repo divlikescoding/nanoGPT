@@ -65,7 +65,7 @@ class CausalSelfAttention(nn.Module):
                 self.bias[0][0][curr_token_pos][reset_token_pos] = 0
         """
 
-        f = open("demofile4.txt", "w")
+        f = open("bias.txt", "w")
         f.write(str(self.bias[0][0]))
         f.close()
 
