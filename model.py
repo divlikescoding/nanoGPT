@@ -60,7 +60,7 @@ class CausalSelfAttention(nn.Module):
         print("------------------------------------------------------------------------------------------")
         for curr_token_pos in range(self.wind + 1, config.block_size, 1):
             for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
-                self.bias[0][0][curr_token_pos][reset_token_pos] = 0 
+                self.bias[0][0][curr_token_pos][reset_token_pos] = 0
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
