@@ -72,7 +72,7 @@ class CausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-        if self.flash:
+        if not self.flash:
             # efficient attention using Flash Attention CUDA kernels
 
             #CHANGE: Use bias mask to enable wind masking
