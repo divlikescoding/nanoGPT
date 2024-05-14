@@ -41,13 +41,26 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.dropout = config.dropout
+
+        #CHANGE: Add wind from config to the class instance
+        self.wind = config.wind
+
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         if not self.flash:
             print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
             # causal mask to ensure that attention is only applied to the left in the input sequence
-            self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
-                                        .view(1, 1, config.block_size, config.block_size))
+
+        #CHANGE: Initialize Bias buffer for either mode to enable wind masking
+        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+            .view(1, 1, config.block_size, config.block_size))
+        
+        print("------------------------------------------------------------------------------------------")
+        print("Wind: " + str(config.wind))
+        print("------------------------------------------------------------------------------------------")
+        for curr_token_pos in range(self.wind + 1, config.block_size, 1):
+            for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
+                self.bias[curr_token_pos][reset_token_pos] = torch.zeros(config.batch_size, self.n_head)
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
@@ -61,7 +74,10 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
-            y = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=self.dropout if self.training else 0, is_causal=True)
+
+            #CHANGE: Use bias mask to enable wind masking
+            y = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=self.bias, dropout_p=self.dropout if self.training else 0, 
+                is_causal=False)
         else:
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
@@ -114,6 +130,10 @@ class GPTConfig:
     n_embd: int = 768
     dropout: float = 0.0
     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
+
+    #CHANGE: Added the wind parameter for wind masking
+    wind: int = 100
+    batch_size: int = 64
 
 class GPT(nn.Module):
 
