@@ -61,12 +61,12 @@ class CausalSelfAttention(nn.Module):
         bias = torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size)
         for curr_token_pos in range(self.wind + 1, config.block_size, 1):
             for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
-                #self.bias[0][0][curr_token_pos][reset_token_pos] = 0
-                bias[0][0][reset_token_pos][curr_token_pos] = 0
+                bias[0][0][curr_token_pos][reset_token_pos] = 0
+                #bias[0][0][reset_token_pos][curr_token_pos] = 0
 
         self.register_buffer("bias", bias)
 
-        f = open("bias2.txt", "w")
+        f = open("bias3.txt", "w")
         f.write(str(self.bias[0][0]))
         f.close()
 
