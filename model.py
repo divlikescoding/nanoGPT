@@ -62,6 +62,10 @@ class CausalSelfAttention(nn.Module):
             for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
                 self.bias[0][0][curr_token_pos][reset_token_pos] = 0
 
+        f = open("demofile3.txt", "w")
+        f.write(str(self.bias))
+        f.close()
+
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
@@ -81,7 +85,6 @@ class CausalSelfAttention(nn.Module):
         else:
             # manual implementation of attention
             att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-            print(self.bias)
             att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
             att = F.softmax(att, dim=-1)
             att = self.attn_dropout(att)
