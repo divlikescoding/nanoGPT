@@ -58,11 +58,9 @@ class CausalSelfAttention(nn.Module):
         print("------------------------------------------------------------------------------------------")
         print("Wind: " + str(config.wind))
         print("------------------------------------------------------------------------------------------")
-        import pdb
-        pdb.set_trace()
         for curr_token_pos in range(self.wind + 1, config.block_size, 1):
             for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
-                self.bias[curr_token_pos][reset_token_pos] = torch.zeros(config.batch_size, self.n_head)
+                self.bias[curr_token_pos][reset_token_pos] = 0 
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
