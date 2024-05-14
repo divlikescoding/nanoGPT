@@ -66,7 +66,7 @@ class CausalSelfAttention(nn.Module):
         """
 
         f = open("demofile4.txt", "w")
-        f.write(str(self.bias))
+        f.write(str(self.bias[0][0]))
         f.close()
 
     def forward(self, x):
