@@ -47,27 +47,23 @@ class CausalSelfAttention(nn.Module):
 
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
-        self.flash = False
         if not self.flash:
             print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
             # causal mask to ensure that attention is only applied to the left in the input sequence
 
-        #CHANGE: Initialize Bias buffer for either mode to enable wind masking
-        
-        
-        print("------------------------------------------------------------------------------------------")
-        print("Wind: " + str(config.wind))
-        print("------------------------------------------------------------------------------------------")
         bias = torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size)
-        for curr_token_pos in range(self.wind + 1, config.block_size, 1):
-            for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
-                bias[0][0][curr_token_pos][reset_token_pos] = 0
+        
+        #CHANGE: Initialize Bias buffer for either mode to enable wind masking
+        if self.wind >= 0: 
+            self.flash = False #Disable flash attention if using windowed attention
+            print("------------------------------------------------------------------------------------------")
+            print("Wind: " + str(config.wind))
+            print("------------------------------------------------------------------------------------------")
+            for curr_token_pos in range(self.wind + 1, config.block_size, 1):
+                for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
+                    bias[0][0][curr_token_pos][reset_token_pos] = 0
 
         self.register_buffer("bias", bias)
-
-        f = open("bias4.txt", "w")
-        f.write(str(self.bias[0][0]))
-        f.close()
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
