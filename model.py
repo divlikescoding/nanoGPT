@@ -65,7 +65,7 @@ class CausalSelfAttention(nn.Module):
 
         self.register_buffer("bias", bias)
 
-        f = open("bias3.txt", "w")
+        f = open("bias4.txt", "w")
         f.write(str(self.bias[0][0]))
         f.close()
 
