@@ -33,6 +33,7 @@ class CausalSelfAttention(nn.Module):
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
         self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd, bias=config.bias)
+        self.kqv_proj = nn.Linear(config.n_embd, 3 * self.n_kqv_embd, bias=config.bias)
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         # regularization
@@ -50,7 +51,7 @@ class CausalSelfAttention(nn.Module):
         print("N_KQV_EMDB: " + str(self.n_kqv_embd))
 
         #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
-        self.kqv_proj = nn.Linear(config.n_embd, 3 * self.n_kqv_embd, bias=config.bias)
+        self.kqv_proj = nn.Linear(config.n_embd, 3 * config.n_head * self.n_kqv_embd, bias=config.bias)
 
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
@@ -77,8 +78,7 @@ class CausalSelfAttention(nn.Module):
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         q, k, v  = self.kqv_proj(x).split(self.n_kqv_embd, dim=2)
-        import pdb
-        pdb.set_trace()
+        #q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
