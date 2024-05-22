@@ -45,6 +45,13 @@ class CausalSelfAttention(nn.Module):
         #CHANGE: Add wind from config to the class instance
         self.wind = config.wind
 
+        #CHANGE: Add key, value, query dimension to the class instance
+        self.n_kqv_embd = config.n_kqv_embd
+        print("N_KQV_EMDB: " + str(self.n_kqv_embd))
+
+        #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
+        self.kqv_proj = nn.Linear(self.n_embd // self.n_head, self.n_kqv_emdb, bias=config.bias)
+
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         if not self.flash:
@@ -74,6 +81,26 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
 
+        #CHANGE: Change Key, Query, Value to the input dimension
+        for curr_B in range(B):
+            for curr_head in range(self.n_head):
+                for curr_T in range(T):
+                    new_value = self.kqv_proj(k[curr_B][curr_head][curr_T])
+                    k[curr_B][curr_head][curr_T] = torch.zeros(C // self.n_head)
+                    k[curr_B][curr_head][curr_T][:self.n_kqv_embd] = new_value
+
+                    new_value = self.kqv_proj(q[curr_B][curr_head][curr_T])
+                    q[curr_B][curr_head][curr_T] = torch.zeros(C // self.n_head)
+                    q[curr_B][curr_head][curr_T][:self.n_kqv_embd] = new_value
+                    
+                    new_value = self.kqv_proj(v[curr_B][curr_head][curr_T])
+                    v[curr_B][curr_head][curr_T] = torch.zeros(C // self.n_head)
+                    v[curr_B][curr_head][curr_T][:self.n_kqv_embd] = new_value
+
+        k = k[:,:,:,:self.n_kqv_embd]
+        q = q[:,:,:,:self.n_kqv_embd]
+        v = v[:,:,:,:self.n_kqv_embd]
+
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
@@ -99,15 +126,26 @@ class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
+        #CHANGE: Add a second Linear Layer for fc2
+        self.c_fc2    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
         self.gelu    = nn.GELU()
         self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
+        #CHANGE: Call functions in order specified in the question
+        old_x = x
         x = self.c_fc(x)
         x = self.gelu(x)
+        x = x * self.c_fc2(old_x)
         x = self.c_proj(x)
         x = self.dropout(x)
+
+        #Old MLP
+        #x = self.c_fc(x)
+        #x = self.gelu(x)
+        #x = self.c_proj(x)
+        #x = self.dropout(x)
         return x
 
 class Block(nn.Module):
@@ -137,6 +175,7 @@ class GPTConfig:
     #CHANGE: Added the wind parameter for wind masking
     wind: int = 100
     batch_size: int = 64
+    n_kqv_embd: int = 32
 
 class GPT(nn.Module):
 
