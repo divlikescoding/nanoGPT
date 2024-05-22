@@ -50,7 +50,7 @@ class CausalSelfAttention(nn.Module):
         print("N_KQV_EMDB: " + str(self.n_kqv_embd))
 
         #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
-        self.kqv_proj = nn.Linear(self.n_embd // self.n_head, self.n_kqv_emdb, bias=config.bias)
+        self.kqv_proj = nn.Linear(self.n_embd // self.n_head, self.n_kqv_embd, bias=config.bias)
 
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
