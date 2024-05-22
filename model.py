@@ -87,6 +87,7 @@ class CausalSelfAttention(nn.Module):
         q = self.q_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
         #v = self.v_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
         _, _, v = self.c_attn(x).split(self.n_embd, dim=2)
+        v = v.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
         self.flash = False
         import pdb
         pdb.set_trace()
