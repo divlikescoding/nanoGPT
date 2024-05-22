@@ -50,7 +50,7 @@ class CausalSelfAttention(nn.Module):
         print("N_KQV_EMDB: " + str(self.n_kqv_embd))
 
         #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
-        self.kqv_proj = nn.Linear(self.n_embd // self.n_head, self.n_kqv_embd, bias=config.bias)
+        self.kqv_proj = nn.Linear(config.n_embd, 3 * self.n_kqv_embd, bias=config.bias)
 
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
@@ -77,29 +77,9 @@ class CausalSelfAttention(nn.Module):
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-
-        #CHANGE: Change Key, Query, Value to the input dimension
-        for curr_B in range(B):
-            for curr_head in range(self.n_head):
-                for curr_T in range(T):
-                    new_value = self.kqv_proj(k[curr_B][curr_head][curr_T])
-                    k[curr_B][curr_head][curr_T] = torch.zeros(C // self.n_head)
-                    k[curr_B][curr_head][curr_T][:self.n_kqv_embd] = new_value
-
-                    new_value = self.kqv_proj(q[curr_B][curr_head][curr_T])
-                    q[curr_B][curr_head][curr_T] = torch.zeros(C // self.n_head)
-                    q[curr_B][curr_head][curr_T][:self.n_kqv_embd] = new_value
-                    
-                    new_value = self.kqv_proj(v[curr_B][curr_head][curr_T])
-                    v[curr_B][curr_head][curr_T] = torch.zeros(C // self.n_head)
-                    v[curr_B][curr_head][curr_T][:self.n_kqv_embd] = new_value
-
-        k = k[:,:,:,:self.n_kqv_embd]
-        q = q[:,:,:,:self.n_kqv_embd]
-        v = v[:,:,:,:self.n_kqv_embd]
+        k = k.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
+        q = q.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
+        v = v.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
