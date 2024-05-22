@@ -50,7 +50,9 @@ class CausalSelfAttention(nn.Module):
         print("N_KQV_EMDB: " + str(self.n_kqv_embd))
 
         #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
-        self.kqv_proj = nn.Linear(config.n_embd, 3 * config.n_head * self.n_kqv_embd, bias=config.bias)
+        self.k_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
+        self.q_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
+        self.v_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
 
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
@@ -76,11 +78,14 @@ class CausalSelfAttention(nn.Module):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        q, k, v  = self.kqv_proj(x).split(self.n_kqv_embd, dim=2)
+        #q, k, v  = self.kqv_proj(x).split(self.n_kqv_embd, dim=2)
         #q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
-        k = k.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
-        q = q.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
-        v = v.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
+        #k = k.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
+        #q = q.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
+        #v = v.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
+        k = self.k_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
+        q = self.q_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
+        v = self.v_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
