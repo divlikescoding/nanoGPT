@@ -45,12 +45,17 @@ class CausalSelfAttention(nn.Module):
         #CHANGE: Add wind from config to the class instance
         self.wind = config.wind
 
-        #CHANGE: Add key, value, query dimension to the class instance
+        #CHANGE: Add key, query dimension to the class instance
         self.n_kqv_embd = config.n_kqv_embd
+        self.is_down_project_k_q = config.is_down_project_k_q
 
-        #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
+        #CHANGE: Add k and q projection matrix --> Project k and q to a lower dimension
         self.k_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
         self.q_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
+
+        print("Wind: " + str(self.wind))
+        print("KQV Embd: " + str(self.n_kqv_embd))
+        print("Is Down Project K & Q: " + str(self.is_down_project_k_q))
 
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
@@ -63,9 +68,6 @@ class CausalSelfAttention(nn.Module):
         #CHANGE: Initialize Bias buffer for either mode to enable wind masking
         if self.wind >= 0: 
             self.flash = False #Disable flash attention if using windowed attention
-            print("------------------------------------------------------------------------------------------")
-            print("Wind: " + str(config.wind))
-            print("------------------------------------------------------------------------------------------")
             for curr_token_pos in range(self.wind + 1, config.block_size, 1):
                 for reset_token_pos in range(curr_token_pos - self.wind, -1, -1):
                     bias[0][0][curr_token_pos][reset_token_pos] = 0
@@ -75,18 +77,20 @@ class CausalSelfAttention(nn.Module):
     def forward(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
-        # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        #q, k, v  = self.kqv_proj(x).split(self.n_kqv_embd, dim=2)
-        #q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
-        #k = k.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
-        #q = q.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
-        #v = v.view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2) # (B, nh, T, hs)
-        k = self.k_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
-        q = self.q_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
-        #v = self.v_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
-        _, _, v = self.c_attn(x).split(self.n_embd, dim=2)
-        v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        self.flash = False
+        """
+        Problem 2: To Down-project key and query
+        """
+        if self.is_down_project_k_q:
+            k = self.k_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
+            q = self.q_proj(x).view(B, T, self.n_head, self.n_kqv_embd).transpose(1, 2)
+            _, _, v = self.c_attn(x).split(self.n_embd, dim=2)
+            v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+            self.flash = False
+        else:
+            q, k, v  = self.c_attn(x).split(self.n_embd, dim=2)
+            k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+            q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+            v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs) 
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
@@ -118,21 +122,24 @@ class MLP(nn.Module):
         self.gelu    = nn.GELU()
         self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
+        self.is_llama_mlp = config.is_llama_mlp
+        print("Llama MLP: " + str(self.is_llama_mlp))
 
     def forward(self, x):
-        #CHANGE: Call functions in order specified in the question
-        old_x = x
-        x = self.c_fc(x)
-        x = self.gelu(x)
-        x = x * self.c_fc2(old_x)
-        x = self.c_proj(x)
-        x = self.dropout(x)
-
-        #Old MLP
-        #x = self.c_fc(x)
-        #x = self.gelu(x)
-        #x = self.c_proj(x)
-        #x = self.dropout(x)
+        if self.is_llama_mlp:
+            #CHANGE: Call functions in order specified in the question to implement the llama mlp
+            old_x = x
+            x = self.c_fc(x)
+            x = self.gelu(x)
+            x = x * self.c_fc2(old_x)
+            x = self.c_proj(x)
+            x = self.dropout(x)
+        else:
+            #Old MLP
+            x = self.c_fc(x)
+            x = self.gelu(x)
+            x = self.c_proj(x)
+            x = self.dropout(x)
         return x
 
 class Block(nn.Module):
@@ -161,8 +168,11 @@ class GPTConfig:
 
     #CHANGE: Added the wind parameter for wind masking
     wind: int = 100
-    batch_size: int = 64
+    #CHANGE: Added n_kqv_emdb for the size of k and q in attention module
     n_kqv_embd: int = 32
+    is_down_project_k_q: bool = False
+    #Change: Added this to know whether to use llama mlp or standard GPT mlp
+    is_llama_mlp: bool = False
 
 class GPT(nn.Module):
 

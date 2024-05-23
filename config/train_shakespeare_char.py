@@ -22,9 +22,11 @@ block_size = 256 # context of up to 256 previous characters
 n_layer = 6
 n_head = 6
 n_embd = 384
-n_kqv_embd = 32
 dropout = 0.2
+n_kqv_embd = 32
+is_down_project_k_q = True
 wind = -1
+is_llama_mlp = False
 
 learning_rate = 1e-3 # with baby networks can afford to go a bit higher
 max_iters = 5000
