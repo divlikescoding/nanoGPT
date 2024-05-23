@@ -26,7 +26,7 @@ dropout = 0.2
 n_kqv_embd = 64
 is_down_project_k_q = True
 wind = -1
-is_llama_mlp = False
+is_llama_mlp = True
 
 learning_rate = 1e-3 # with baby networks can afford to go a bit higher
 max_iters = 5000
