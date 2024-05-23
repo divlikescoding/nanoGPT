@@ -89,8 +89,6 @@ class CausalSelfAttention(nn.Module):
         _, _, v = self.c_attn(x).split(self.n_embd, dim=2)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         self.flash = False
-        import pdb
-        pdb.set_trace()
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
