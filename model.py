@@ -47,7 +47,6 @@ class CausalSelfAttention(nn.Module):
 
         #CHANGE: Add key, value, query dimension to the class instance
         self.n_kqv_embd = config.n_kqv_embd
-        print("N_KQV_EMDB: " + str(self.n_kqv_embd))
 
         #CHANGE: Add kqv projection matrix --> Project kqv to a lower dimension
         self.k_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
