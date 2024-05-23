@@ -23,8 +23,8 @@ n_layer = 6
 n_head = 6
 n_embd = 384
 dropout = 0.2
-n_kqv_embd = 32
-is_down_project_k_q = False
+n_kqv_embd = 64
+is_down_project_k_q = True
 wind = -1
 is_llama_mlp = False
 
