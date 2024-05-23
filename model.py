@@ -50,8 +50,9 @@ class CausalSelfAttention(nn.Module):
         self.is_down_project_k_q = config.is_down_project_k_q
 
         #CHANGE: Add k and q projection matrix --> Project k and q to a lower dimension
-        self.k_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
-        self.q_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
+        if self.is_down_project_k_q:
+            self.k_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
+            self.q_proj = nn.Linear(config.n_embd, config.n_head * self.n_kqv_embd, bias=config.bias)
 
         print("Wind: " + str(self.wind))
         print("KQV Embd: " + str(self.n_kqv_embd))
@@ -117,12 +118,13 @@ class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
-        #CHANGE: Add a second Linear Layer for fc2
-        self.c_fc2    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
         self.gelu    = nn.GELU()
         self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
         self.is_llama_mlp = config.is_llama_mlp
+        if self.is_llama_mlp:
+            #CHANGE: Add a second Linear Layer for fc2
+            self.c_fc2    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
         print("Llama MLP: " + str(self.is_llama_mlp))
 
     def forward(self, x):
